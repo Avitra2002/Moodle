@@ -1,0 +1,15 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo No dependencies to install
+
+  build:
+    commands:
+      - echo Build started on `date`
+
+artifacts:
+  files:
+    - '**/*'
+  discard-paths: no  # 👈 PRESERVE original directory structure

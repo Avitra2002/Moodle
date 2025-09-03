@@ -1,0 +1,89 @@
+<?php
+require_once('../../config.php'); // Adjust path if needed
+
+require_login();
+$systemctx = context_system::instance();
+require_capability('moodle/user:update', $systemctx); // Only admins
+
+global $DB, $OUTPUT, $PAGE, $USER;
+
+$PAGE->set_context($systemctx);
+$PAGE->set_url(new moodle_url('/local/cv_approval.php'));
+$PAGE->set_title('CV Approval Panel');
+$PAGE->set_heading('CV Approval Panel');
+
+// Get field IDs
+$cvfieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'CVUpload']);
+$statusfieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'cv_status']);
+
+// Handle approval actions
+$userid = optional_param('userid', 0, PARAM_INT);
+$action = optional_param('action', '', PARAM_ALPHA);
+
+if ($userid && in_array($action, ['approve', 'reject'])) {
+    $status = ($action === 'approve') ? 'approved' : 'rejected';
+
+    $record = $DB->get_record('user_info_data', [
+        'userid' => $userid,
+        'fieldid' => $statusfieldid
+    ]);
+
+    if ($record) {
+        $record->data = $status;
+        $DB->update_record('user_info_data', $record);
+    } else {
+        $new = (object)[
+            'userid' => $userid,
+            'fieldid' => $statusfieldid,
+            'data' => $status
+        ];
+        $DB->insert_record('user_info_data', $new);
+    }
+
+    redirect(new moodle_url('/local/cv_approval.php'), "User status updated.");
+}
+
+// Fetch users with CV uploaded
+$sql = "SELECT u.id, u.firstname, u.lastname, u.email, cv.data AS cvfile, cv.data AS cvstatus
+        FROM {user} u
+        JOIN {user_info_data} cv ON cv.userid = u.id AND cv.fieldid = 1 AND cv.dataformat=0
+        WHERE cv.data IS NOT NULL";
+$params = ['cvfield' => $cvfieldid, 'statusfield' => $statusfieldid];
+$users = $DB->get_records_sql($sql, $params);
+
+echo $OUTPUT->header();
+echo $OUTPUT->heading('CV Approval Dashboard');
+
+$table = new html_table();
+$table->head = ['Name', 'Email', 'CV File', 'Status', 'Action'];
+
+foreach ($users as $user) {
+    $context = context_user::instance($user->id);
+
+    $cvurl = moodle_url::make_pluginfile_url(
+        $context->id, 'user', 'profile', null, '/', $users->cvfile
+    );
+
+    $status = $user->cvstatus ?? 'pending';
+
+    $actions = '';
+    if ($status !== 'approved') {
+        $approveurl = new moodle_url('/local/cv_approval.php', ['userid' => $user->id, 'action' => 'approve']);
+        $rejecturl = new moodle_url('/local/cv_approval.php', ['userid' => $user->id, 'action' => 'reject']);
+        $actions = html_writer::link($approveurl, ' Approve') . ' | ' .
+                   html_writer::link($rejecturl, ' Reject');
+    } else {
+        $actions = ' Approved';
+    }
+
+    $table->data[] = [
+        fullname($user),
+        $user->email,
+        html_writer::link($cvurl, '📎 View CV'),
+        ucfirst($status),
+        $actions
+    ];
+}
+
+echo html_writer::table($table);
+echo $OUTPUT->footer();
