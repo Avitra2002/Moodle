@@ -1,0 +1,76 @@
+<?php
+
+namespace local_approval;
+
+defined('MOODLE_INTERNAL') || die();
+
+class observer {
+
+    public static function on_user_updated(\core\event\user_updated $event) {
+        global $DB;
+
+        $userid = $event->objectid;
+        error_log("🔔 Observer triggered for user ID: $userid");
+
+        $cvfieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'CVUpload'] );
+        $statusfieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'cv_status']);
+
+        if (!$cvfieldid || !$statusfieldid) {
+            error_log("❌ CV field or status field missing.");
+            return;
+        }
+
+        $cvdata = $DB->get_record('user_info_data', ['userid' => $userid, 'fieldid' => $cvfieldid]);
+
+        if (!$cvdata || empty(trim($cvdata->data))) {
+            error_log("⚠️ No CV data found or empty.");
+            return;
+        }
+
+        // Set to pending
+        $record = $DB->get_record('user_info_data', ['userid' => $userid, 'fieldid' => $statusfieldid]);
+
+        if ($record) {
+            $record->data = 'pending';
+            $DB->update_record('user_info_data', $record);
+        } else {
+            $DB->insert_record('user_info_data', (object)[
+                'userid' => $userid,
+                'fieldid' => $statusfieldid,
+                'data' => 'pending'
+            ]);
+        }
+
+        error_log("✅ CV status set to pending for user ID $userid");
+
+        // Notify admin
+        $admin = get_admin();
+        self::notify_admin_of_submission($userid, $admin);
+    }
+
+    private static function notify_admin_of_submission(int $userid, \stdClass $admin) {
+        global $DB;
+
+        $user = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
+
+        $subject = 'New CV Submitted';
+        $fullmessage = fullname($user) . " has uploaded or updated their CV.\nPlease review and approve.";
+
+        $message = new \core\message\message();
+        $message->component         = 'local_approval';
+        $message->name              = 'cv_status_change';
+        $message->userfrom          = core_user::get_noreply_user();
+        $message->userto            = $admin;
+        $message->subject           = $subject;
+        $message->fullmessage       = $fullmessage;
+        $message->fullmessageformat = FORMAT_PLAIN;
+        $message->fullmessagehtml   = nl2br($fullmessage);
+        $message->smallmessage      = $subject;
+        $message->notification      = 1;
+        $message->contexturl        = new \moodle_url('/local/approval/approve.php');
+        $message->contexturlname    = 'CV Approval Panel';
+
+        $msgid = message_send($message);
+        error_log("📨 Notification sent to admin ({$admin->id}), msg ID: " . var_export($msgid, true));
+    }
+}
