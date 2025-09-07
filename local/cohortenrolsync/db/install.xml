@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/cohortenrolsync/db" VERSION="2025090300" COMMENT="Cohort Sync custom tables">
+    <TABLES>
+
+        <!-- Direct user ↔ course -->
+        <TABLE NAME="employee_course_assign" COMMENT="Direct employee-to-course assignments">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="assignedby" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="reason" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+                <KEY NAME="uniq_user_course" TYPE="unique" FIELDS="userid, courseid"/>
+            </KEYS>
+            <INDEXES>
+                <INDEX NAME="idx_course_user" UNIQUE="false" FIELDS="courseid, userid"/>
+            </INDEXES>
+        </TABLE>
+
+        <!-- Direct user ↔ category -->
+        <TABLE NAME="employee_category_assign" COMMENT="Direct employee-to-category assignments">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="assignedby" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="reason" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+                <KEY NAME="uniq_user_category" TYPE="unique" FIELDS="userid, categoryid"/>
+            </KEYS>
+            <INDEXES>
+                <INDEX NAME="idx_category_user" UNIQUE="false" FIELDS="categoryid, userid"/>
+            </INDEXES>
+        </TABLE>
+
+        <!-- Cohort ↔ course -->
+        <TABLE NAME="cohort_course_assign" COMMENT="Cohort-to-course assignments">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="cohortid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="roleid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="assignedby" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+                <KEY NAME="uniq_cohort_course" TYPE="unique" FIELDS="cohortid, courseid"/>
+            </KEYS>
+            <INDEXES>
+                <INDEX NAME="idx_course_cohort" UNIQUE="false" FIELDS="courseid, cohortid"/>
+            </INDEXES>
+        </TABLE>
+
+        <!-- Cohort ↔ category -->
+        <TABLE NAME="cohort_category_assign" COMMENT="Cohort-to-category assignments">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="cohortid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="roleid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="assignedby" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+                <KEY NAME="uniq_cohort_category" TYPE="unique" FIELDS="cohortid, categoryid"/>
+            </KEYS>
+            <INDEXES>
+                <INDEX NAME="idx_category_cohort" UNIQUE="false" FIELDS="categoryid, cohortid"/>
+            </INDEXES>
+        </TABLE>
+
+    </TABLES>
+</XMLDB>
