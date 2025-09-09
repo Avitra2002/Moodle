@@ -117,7 +117,7 @@ class batch_manager {
             throw $e;
         }
     }
-    private static function queue_user_sync_chunks(array $userids, int $chunk_size = 100) {
+    public static function queue_user_sync_chunks(array $userids, int $chunk_size = 100) {
         if (empty($userids)) {
             return;
         }
@@ -137,6 +137,12 @@ class batch_manager {
     // assign multple courses to multiple users
     private static function execute_assign_courses_to_users($jobid, $data) {
         global $DB;
+
+        foreach ($data['courseids'] as $courseid) {
+            if (!$DB->record_exists('course', ['id' => $courseid])) {
+                throw new \invalid_parameter_exception("Course $courseid does not exist");
+            }
+        }
 
         $userids    = $data['userids'];
         $courseids  = $data['courseids'];
@@ -196,6 +202,13 @@ class batch_manager {
         $roleid     = $data['roleid'] ?? 5;
         $assignedby = $data['assignedby'] ?? 0;
 
+        if (!$DB->record_exists('cohort', ['id' => $cohortid])) {
+            throw new \invalid_parameter_exception("Cohort $cohortid does not exist");
+        }
+        if (!$DB->record_exists('course_categories', ['id' => $categoryid])) {
+            throw new \invalid_parameter_exception("Category $categoryid does not exist");
+        }
+
         $exists = $DB->record_exists('cohort_category_assign', [
             'cohortid'   => $cohortid,
             'categoryid' => $categoryid
@@ -222,9 +235,11 @@ class batch_manager {
         ])->trigger();
 
         $userids = $DB->get_fieldset('cohort_members', 'userid', ['cohortid' => $cohortid]);
+        echo "DEBUG: Found " . count($userids) . " users to sync: " . implode(',', $userids) . "<br>";
         if (!empty($userids)) {
             // \local_cohortenrolsync\core\sync_engine::incremental_sync($userids);
             self::queue_user_sync_chunks($userids);
+            echo "DEBUG: Finished queuing sync tasks<br>";
         }
 
         $DB->set_field('cohortsync_batch_jobs', 'progress', 100, ['id' => $jobid]);
@@ -286,6 +301,9 @@ class batch_manager {
                 'courseid' => $courseid
             ]);
 
+            //cleanup for potentially deleted courses
+            \local_cohortenrolsync\core\sync_engine::cleanup_deleted_course_assignments($courseid);
+
             // event per course removed
             \local_cohortenrolsync\event\cohort_course_assignment_changed::create([
                 'context' => \context_system::instance(),
@@ -317,6 +335,10 @@ class batch_manager {
             'categoryid' => $categoryid
         ]);
 
+        if (!$DB->record_exists('course_categories', ['id' => $categoryid])) {
+            $DB->delete_records('employee_category_assign', ['categoryid' => $categoryid]);
+        }
+
         cohort_category_assignment_changed::create([
             'context' => \context_system::instance(),
             'other'   => [
@@ -342,6 +364,10 @@ class batch_manager {
         $categoryid = $data['categoryid'];
         $roleid = $data['roleid'] ?? 5;
         $assignedby = $data['assignedby'] ?? 0;
+
+        if (!$DB->record_exists('course_categories', ['id' => $categoryid])) {
+            throw new \invalid_parameter_exception("Category $categoryid does not exist");
+        }
 
         foreach ($userids as $userid) {
             $exists = $DB->record_exists('employee_category_assign', [
@@ -415,6 +441,10 @@ class batch_manager {
         $courseids = $data['courseids'];
         $roleid    = $data['roleid'] ?? 5;
         $assignedby = $data['assignedby'] ?? 0;
+        if (!$DB->record_exists('cohort', ['id' => $cohortid])) {
+            throw new \invalid_parameter_exception("Cohort $cohortid does not exist");
+        }
+
 
         foreach ($courseids as $courseid) {
             $exists = $DB->record_exists('cohort_course_assign', [

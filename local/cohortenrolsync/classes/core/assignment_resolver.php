@@ -9,6 +9,68 @@ defined('MOODLE_INTERNAL') || die();
 class assignment_resolver {
 
     //union calc
+    // public static function get_effective_course_assignments($userid) {
+    //     global $DB;
+        
+    //     $assignments = [];
+        
+    //     // 1. Get direct course assignments
+    //     $direct = $DB->get_records('employee_course_assign', ['userid' => $userid]);
+    //     foreach ($direct as $assignment) {
+    //         $assignments[$assignment->courseid] = [
+    //             'courseid' => $assignment->courseid,
+    //             'sources' => ['direct'],
+    //             'roleid' => null 
+    //         ];
+    //     }
+        
+    //     // 2. Get cohort-based course assignments
+    //     $cohort_assignments = self::get_cohort_course_assignments($userid);
+    //     foreach ($cohort_assignments as $courseid => $data) {
+    //         if (isset($assignments[$courseid])) {
+    //             // Already has this course from direct assignment, add cohort as source
+    //             $assignments[$courseid]['sources'][] = 'cohort';
+    //             if (!$assignments[$courseid]['roleid'] && $data['roleid']) {
+    //                 $assignments[$courseid]['roleid'] = $data['roleid'];
+    //             }
+    //         } else {
+    //             // New course from cohort
+    //             $assignments[$courseid] = [
+    //                 'courseid' => $courseid,
+    //                 'sources' => ['cohort'],
+    //                 'roleid' => $data['roleid']
+    //             ];
+    //         }
+    //     }
+        
+    //     // 3. Get category-based course assignments
+    //     $category_assignments = self::get_category_course_assignments($userid);
+    //     foreach ($category_assignments as $courseid => $data) {
+    //         if (isset($assignments[$courseid])) {
+    //             // Already has this course, add category as source
+    //             $assignments[$courseid]['sources'][] = 'category';
+    //             if (!$assignments[$courseid]['roleid'] && $data['roleid']) {
+    //                 $assignments[$courseid]['roleid'] = $data['roleid'];
+    //             }
+    //         } else {
+    //             // New course from category
+    //             $assignments[$courseid] = [
+    //                 'courseid' => $courseid,
+    //                 'sources' => ['category'],
+    //                 'roleid' => $data['roleid']
+    //             ];
+    //         }
+    //     }
+        
+    //     // Set default role if none specified
+    //     foreach ($assignments as &$assignment) {
+    //         if (!$assignment['roleid']) {
+    //             $assignment['roleid'] = self::get_default_student_role();
+    //         }
+    //     }
+        
+    //     return $assignments;
+    // }
     public static function get_effective_course_assignments($userid) {
         global $DB;
         
@@ -28,13 +90,11 @@ class assignment_resolver {
         $cohort_assignments = self::get_cohort_course_assignments($userid);
         foreach ($cohort_assignments as $courseid => $data) {
             if (isset($assignments[$courseid])) {
-                // Already has this course from direct assignment, add cohort as source
                 $assignments[$courseid]['sources'][] = 'cohort';
                 if (!$assignments[$courseid]['roleid'] && $data['roleid']) {
                     $assignments[$courseid]['roleid'] = $data['roleid'];
                 }
             } else {
-                // New course from cohort
                 $assignments[$courseid] = [
                     'courseid' => $courseid,
                     'sources' => ['cohort'],
@@ -47,18 +107,25 @@ class assignment_resolver {
         $category_assignments = self::get_category_course_assignments($userid);
         foreach ($category_assignments as $courseid => $data) {
             if (isset($assignments[$courseid])) {
-                // Already has this course, add category as source
                 $assignments[$courseid]['sources'][] = 'category';
                 if (!$assignments[$courseid]['roleid'] && $data['roleid']) {
                     $assignments[$courseid]['roleid'] = $data['roleid'];
                 }
             } else {
-                // New course from category
                 $assignments[$courseid] = [
                     'courseid' => $courseid,
                     'sources' => ['category'],
                     'roleid' => $data['roleid']
                 ];
+            }
+        }
+        
+        // 4. VALIDATE COURSES STILL EXIST - Add this section
+        foreach ($assignments as $courseid => $assignment) {
+            $course_exists = $DB->record_exists('course', ['id' => $courseid]);
+            if (!$course_exists) {
+                // Course was deleted - remove from assignments
+                unset($assignments[$courseid]);
             }
         }
         
@@ -141,6 +208,8 @@ class assignment_resolver {
         $categories = [$categoryid];
         $subcategories = self::get_subcategories($categoryid);
         $categories = array_merge($categories, $subcategories);
+
+
         
         if (empty($categories)) {
             return [];

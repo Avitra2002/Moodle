@@ -37,6 +37,7 @@ class sync_engine {
                 if (self::unenrol_user($removal['userid'], $removal['courseid'])) {
                     $results['assignments_removed']++;
                 }
+                self::cleanup_deleted_course_assignments($removal['courseid']);
                 
             }
             
@@ -204,9 +205,45 @@ class sync_engine {
         return self::sync_users_batch($affected_userids);
     }
     
+    // private static function unenrol_user($userid, $courseid) {
+    //     global $DB;
+        
+    //     $enrol_instance = $DB->get_record('enrol', [
+    //         'courseid' => $courseid,
+    //         'enrol' => self::ENROL_METHOD,
+    //     ]);
+        
+    //     if (!$enrol_instance) {
+    //         return false;
+    //     }
+        
+    //     $enrol_plugin = \enrol_get_plugin(self::ENROL_METHOD);
+    //     if (!$enrol_plugin) {
+    //         return false;
+    //     }
+        
+    //     $enrol_plugin->unenrol_user($enrol_instance, $userid);
+        
+    //     return true;
+    // }
+
     private static function unenrol_user($userid, $courseid) {
         global $DB;
         
+        // Check if course still exists before attempting unenrollment
+        if (!$DB->record_exists('course', ['id' => $courseid])) {
+            // Course was deleted - just clean up the enrollment records directly
+            $DB->delete_records('user_enrolments', [
+                'userid' => $userid,
+                'enrolid' => $DB->get_field('enrol', 'id', [
+                    'courseid' => $courseid,
+                    'enrol' => self::ENROL_METHOD
+                ])
+            ]);
+            return true;
+        }
+        
+        // Course exists - use normal unenrollment process
         $enrol_instance = $DB->get_record('enrol', [
             'courseid' => $courseid,
             'enrol' => self::ENROL_METHOD,
@@ -222,7 +259,6 @@ class sync_engine {
         }
         
         $enrol_plugin->unenrol_user($enrol_instance, $userid);
-        
         return true;
     }
     
@@ -245,5 +281,20 @@ class sync_engine {
         
         
         return $stats;
+    }
+
+    public static function cleanup_deleted_course_assignments($courseid) {
+        global $DB;
+        
+        // Check if course still exists
+        if ($DB->record_exists('course', ['id' => $courseid])) {
+            return; // Course exists, no cleanup needed
+        }
+        
+        // Course deleted - clean up all assignment records
+        $DB->delete_records('employee_course_assign', ['courseid' => $courseid]);
+        $DB->delete_records('cohort_course_assign', ['courseid' => $courseid]);
+        
+        // Note: Don't clean up category assignments since they're not course-specific
     }
 }

@@ -31,15 +31,52 @@ class event_handler {
         }
     }
 
+    // public static function cohort_deleted(\core\event\cohort_deleted $event) {
+    //     global $DB;
+    //     $cohortid = $event->objectid;
+    //     // Users lose any assignments inherited via this cohort.
+    //     $userids = $DB->get_fieldset('cohort_members', 'userid', ['cohortid' => $cohortid]);
+    //     if ($userids) {
+    //         // sync_engine::incremental_sync($userids);
+    //         \local_cohortenrolsync\services\batch_manager::queue_user_sync_chunks($userids);
+    //     }
+    // }
+
     public static function cohort_deleted(\core\event\cohort_deleted $event) {
+        file_put_contents('/tmp/cohort_deleted_debug.log', 
+            date('Y-m-d H:i:s') . " - Cohort deleted event fired for cohort ID: " . $event->objectid . "\n", 
+            FILE_APPEND);
+        
         global $DB;
         $cohortid = $event->objectid;
-        // Users lose any assignments inherited via this cohort.
-        $userids = $DB->get_fieldset('cohort_members', 'userid', ['cohortid' => $cohortid]);
+        
+        // Get ALL users who might be affected by this cohort's assignments
+        $userids = [];
+        
+        // Get all users who might have courses from this cohort
+        $course_assignments = $DB->get_records('cohort_course_assign', ['cohortid' => $cohortid]);
+        $category_assignments = $DB->get_records('cohort_category_assign', ['cohortid' => $cohortid]);
+        
+        if ($course_assignments || $category_assignments) {
+            // Get all active users and let the sync logic determine who's actually affected
+            $userids = $DB->get_fieldset_sql("
+                SELECT DISTINCT id FROM {user} 
+                WHERE deleted = 0 AND suspended = 0
+            ");
+        }
+        
+        file_put_contents('/tmp/cohort_deleted_debug.log', 
+            "Found " . count($userids) . " total users to check. Course assignments: " . 
+            count($course_assignments) . ", Category assignments: " . count($category_assignments) . "\n", 
+            FILE_APPEND);
+        
         if ($userids) {
-            // sync_engine::incremental_sync($userids);
             \local_cohortenrolsync\services\batch_manager::queue_user_sync_chunks($userids);
         }
+        
+        // Clean up assignment records
+        $DB->delete_records('cohort_course_assign', ['cohortid' => $cohortid]);
+        $DB->delete_records('cohort_category_assign', ['cohortid' => $cohortid]);
     }
 
     
@@ -50,13 +87,49 @@ class event_handler {
         self::sync_users_by_category($courseid);
     }
 
+    // public static function course_updated(\core\event\course_updated $event) {
+    // global $DB;
+    //     $courseid = $event->objectid;
+        
+    //     try {
+    //         $old = $event->get_record_snapshot('course', $courseid);
+    //         $new = $DB->get_record('course', ['id' => $courseid]);
+            
+    //         if ($old && $new && $old->category != $new->category) {
+    //             self::sync_users_affected_by_course_move($courseid, $old->category, $new->category);
+    //         }
+    //     } catch (Exception $e) {
+    //         // Log error but don't break other event processing
+    //         error_log("Cohort sync course_updated error: " . $e->getMessage());
+    //     }
+    // }
     public static function course_updated(\core\event\course_updated $event) {
         global $DB;
         $courseid = $event->objectid;
-        $old = $event->get_record_snapshot('course', $courseid);
-        $new = $DB->get_record('course', ['id' => $courseid]);
-        if ($old && $new && $old->category != $new->category) {
-            self::sync_users_affected_by_course_move($courseid, $old->category, $new->category);
+        
+        try {
+            $eventdata = $event->get_data();
+            
+            if (isset($eventdata['other']['updatedfields']['category'])) {
+                $new_category = $eventdata['other']['updatedfields']['category'];
+                
+                // Sync users who should gain access (new category)
+                self::sync_users_by_categoryid($new_category);
+                
+                // Sync users who currently have the course (for cleanup)
+                $current_users = $DB->get_fieldset_sql("
+                    SELECT DISTINCT ue.userid 
+                    FROM {user_enrolments} ue 
+                    JOIN {enrol} e ON e.id = ue.enrolid 
+                    WHERE e.courseid = ? AND e.enrol = 'cohortsync'
+                ", [$courseid]);
+                
+                if ($current_users) {
+                    \local_cohortenrolsync\services\batch_manager::queue_user_sync_chunks($current_users);
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Cohort sync course_updated error: " . $e->getMessage());
         }
     }
 
@@ -78,6 +151,7 @@ class event_handler {
             // sync_engine::incremental_sync($userids);
             \local_cohortenrolsync\services\batch_manager::queue_user_sync_chunks($userids);
         }
+        \local_cohortenrolsync\core\sync_engine::cleanup_deleted_course_assignments($courseid);
     }
 
     //category lifecycle
@@ -91,9 +165,42 @@ class event_handler {
         self::sync_users_by_categoryid($categoryid);
     }
 
+    // public static function category_deleted(\core\event\course_category_deleted $event) {
+    //     $categoryid = $event->objectid;
+    //     self::sync_users_by_categoryid($categoryid);
+    // }
+
     public static function category_deleted(\core\event\course_category_deleted $event) {
+        global $DB;
         $categoryid = $event->objectid;
-        self::sync_users_by_categoryid($categoryid);
+        
+    
+        $userids = [];
+        
+        // Find users with direct category assignments
+        $userids = array_merge($userids,
+            $DB->get_fieldset('employee_category_assign', 'userid', ['categoryid' => $categoryid])
+        );
+        
+        // Find users with cohort category assignments
+        $sql = "SELECT DISTINCT cm.userid
+                FROM {cohort_category_assign} cca
+                JOIN {cohort_members} cm ON cm.cohortid = cca.cohortid
+                WHERE cca.categoryid = :categoryid";
+        $userids = array_merge($userids, $DB->get_fieldset_sql($sql, ['categoryid' => $categoryid]));
+        
+        $userids = array_unique($userids);
+        
+        // Queue user syncs
+        if ($userids) {
+            \local_cohortenrolsync\services\batch_manager::queue_user_sync_chunks($userids);
+        }
+        
+        // Clean up
+        $DB->delete_records('employee_category_assign', ['categoryid' => $categoryid]);
+        $DB->delete_records('cohort_category_assign', ['categoryid' => $categoryid]);
+        
+       
     }
 
     //user lifecycle

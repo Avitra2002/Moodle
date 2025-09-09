@@ -6,7 +6,7 @@ function xmldb_local_cohortenrolsync_upgrade($oldversion) {
 
     $dbman = $DB->get_manager();
 
-    if ($oldversion < 2025090304) {
+    if ($oldversion < 2025090305) {
         $table = new xmldb_table('cohortsync_batch_jobs');
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $table->add_field('operation_type', XMLDB_TYPE_CHAR, '50', null, XMLDB_NOTNULL, null, null);
