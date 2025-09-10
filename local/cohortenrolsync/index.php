@@ -8,7 +8,7 @@ require_capability('moodle/site:config', $context);
 $PAGE->set_context($context);
 $PAGE->set_url(new moodle_url('/local/cohortenrolsync/index.php'));
 $PAGE->set_title(get_string('pluginname', 'local_cohortenrolsync'));
-$PAGE->set_heading(get_string('pluginname', 'local_cohortenrolsync'));
+$PAGE->set_heading('Bulk Enrolment Form');
 
 $form = new \local_cohortenrolsync\form\bulk_assign_form();
 
@@ -77,6 +77,5 @@ if ($form->is_cancelled()) {
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('bulkassign', 'local_cohortenrolsync'));
 $form->display();
 echo $OUTPUT->footer();

@@ -2,7 +2,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_customdashboard';      // Must match your plugin folder name
-$plugin->version   = 2025071100;            // Plugin version (update when you change code)
+$plugin->version   = 2025071102;            // Plugin version (update when you change code)
 $plugin->requires  = 2024042200;            // Moodle 4.5 minimum version (Build: 20240422)
 $plugin->maturity  = MATURITY_STABLE;       // Use MATURITY_ALPHA, BETA, or STABLE
 $plugin->release   = '1.0 for Moodle 4.5';  // Human-readable version
