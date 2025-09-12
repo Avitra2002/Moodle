@@ -1,7 +1,13 @@
 <?php
 require_once('../../config.php');
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+// require_capability('moodle/site:config', context_system::instance());
+if (!has_capability('moodle/site:config', context_system::instance()) &&
+    !has_capability('moodle/site:manageblocks', context_system::instance())) {
+    throw new required_capability_exception(context_system::instance(),
+        'moodle/site:config', 'nopermissions', '');
+}
+
 
 $PAGE->set_url(new moodle_url('/local/customdashboard/index.php'));
 $PAGE->set_context(context_system::instance());
@@ -9,7 +15,11 @@ $PAGE->set_title('Admin Dashboard');
 $PAGE->set_heading('Custom Admin Dashboard');
 $PAGE->set_pagelayout('admin');
 
+
 echo $OUTPUT->header();
+// if (isset($hide_nav_css)) {
+//     echo $hide_nav_css;
+// }
 
 global $DB, $CFG;
 
