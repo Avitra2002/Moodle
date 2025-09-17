@@ -68,12 +68,23 @@ if ($form->is_cancelled()) {
             break;
     }
 
-    $jobid = \local_cohortenrolsync\services\batch_manager::create_bulk_job(
-        $data->operation_type,
-        $operationdata
+    echo $OUTPUT->header();
+
+    $operationname = format_string($data->operation_type);
+    echo html_writer::tag('div',
+        "✅ The operation <strong>{$operationname}</strong> has been submitted.<br>
+        Please wait up to <strong>5 minutes</strong> for the synchronisation to complete.",
+        ['class' => 'alert alert-success', 'style' => 'margin:20px 0; padding:15px;']
     );
 
-    // redirect(new moodle_url('/local/cohortenrolsync/jobstatus.php', ['id' => $jobid]));
+    $dashboardurl = new moodle_url('/local/customdashboard/index.php');
+    echo html_writer::link($dashboardurl, 'Return to Dashboard', [
+        'class' => 'btn btn-primary',
+        'style' => 'margin-top:20px; display:inline-block;'
+    ]);
+
+    echo $OUTPUT->footer();
+    exit;
 }
 
 echo $OUTPUT->header();

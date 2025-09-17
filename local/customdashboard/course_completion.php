@@ -13,7 +13,7 @@ $PAGE->set_heading('Progress Tracking & Reporting');
 // Handle parameters
 $cohortid = optional_param('cohortid', 0, PARAM_INT);
 $courseid = optional_param('courseid', 0, PARAM_INT);
-$viewtype = optional_param('viewtype', 'summary', PARAM_TEXT); // summary or detailed
+$viewtype = optional_param('viewtype', 'summary', PARAM_TEXT); // summary, student_progress, or detailed
 $download = optional_param('download', 0, PARAM_BOOL);
 
 
@@ -197,6 +197,56 @@ function get_cohort_progress_summary($supervised_cohort_ids, $cohortid = 0, $cou
     return $results;
 }
 
+function get_student_progress($supervised_cohort_ids, $cohortid = 0, $courseid = 0) {
+    global $DB;
+    
+    if (empty($supervised_cohort_ids)) {
+        return [];
+    }
+    
+    $cohort_filter = '';
+    $params = [];
+    
+    if ($cohortid > 0 && in_array($cohortid, $supervised_cohort_ids)) {
+        $cohort_filter = "AND coh.id = :selected_cohort";
+        $params['selected_cohort'] = $cohortid;
+    } else {
+        list($cohort_sql, $cohort_params) = $DB->get_in_or_equal($supervised_cohort_ids, SQL_PARAMS_NAMED, 'sup_cohort');
+        $cohort_filter = "AND coh.id $cohort_sql";
+        $params = array_merge($params, $cohort_params);
+    }
+    
+    // Filter by specific course if selected (this will affect the completion calculation)
+    if ($courseid > 0) {
+        $cohort_filter .= " AND c.id = :selected_course";
+        $params['selected_course'] = $courseid;
+    }
+    
+    // Get student progress summary within supervisor's scope
+    $sql = "
+        SELECT 
+            u.id as userid,
+            u.firstname,
+            u.lastname,
+            u.email,
+            COUNT(DISTINCT c.id) as total_enrolled_courses,
+            COUNT(DISTINCT CASE WHEN cc.timecompleted IS NOT NULL THEN c.id END) as completed_courses,
+            GROUP_CONCAT(DISTINCT coh.name ORDER BY coh.name SEPARATOR ', ') as cohort_names,
+            MAX(FROM_UNIXTIME(cc.timecompleted)) as last_completion_date
+        FROM {cohort} coh
+        JOIN {cohort_members} cm ON cm.cohortid = coh.id
+        JOIN {user} u ON u.id = cm.userid AND u.deleted = 0
+        JOIN {user_enrolments} ue ON ue.userid = u.id
+        JOIN {enrol} e ON e.id = ue.enrolid
+        JOIN {course} c ON c.id = e.courseid AND c.visible = 1
+        LEFT JOIN {course_completions} cc ON cc.course = c.id AND cc.userid = u.id AND cc.timecompleted IS NOT NULL
+        WHERE 1=1 $cohort_filter
+        GROUP BY u.id, u.firstname, u.lastname, u.email
+        ORDER BY u.lastname, u.firstname
+    ";
+    
+    return $DB->get_records_sql($sql, $params);
+}
 
 function get_detailed_progress($supervised_cohort_ids, $cohortid = 0, $courseid = 0) {
     global $DB;
@@ -222,93 +272,79 @@ function get_detailed_progress($supervised_cohort_ids, $cohortid = 0, $courseid 
         $cohort_filter .= " AND c.id = :selected_course";
         $params['selected_course'] = $courseid;
     }
-    /// Only show priority enrolment - no duplicates
+    
     // $sql = "
-    //     SELECT * FROM (
-    //         SELECT DISTINCT
-    //             CONCAT(u.id, '-', c.id, '-', ue.id) as unique_key,
-    //             u.id as userid,
-    //             u.firstname, 
-    //             u.lastname, 
-    //             u.email,
-    //             c.id as courseid,
-    //             c.fullname AS coursename,
-    //             ROUND(gg.finalgrade, 2) AS grade,
-    //             CASE 
-    //                 WHEN cc.timecompleted IS NOT NULL THEN 'Completed'
-    //                 WHEN ue.userid IS NOT NULL THEN 'In Progress'
-    //                 ELSE 'Not Enrolled'
-    //             END AS status,
-    //             FROM_UNIXTIME(cc.timecompleted) AS completiondate,
-    //             coh.name as cohort_name,
-    //             CASE 
-    //                 WHEN e.enrol = 'cohort' THEN 'Cohort Assignment'
-    //                 WHEN e.enrol = 'cohortsync' THEN 'Cohort Sync'
-    //                 WHEN e.enrol = 'manual' THEN 'Manual Enrollment'
-    //                 WHEN e.enrol = 'self' THEN 'Self Enrollment'
-    //                 ELSE 'Other (' || e.enrol || ')'
-    //             END as enrollment_type,
-    //             ROW_NUMBER() OVER (
-    //                 PARTITION BY u.id, c.id 
-    //                 ORDER BY 
-    //                     CASE e.enrol 
-    //                         WHEN 'manual' THEN 1
-    //                         WHEN 'cohort' THEN 2  
-    //                         WHEN 'self' THEN 3
-    //                         WHEN 'cohortsync' THEN 4
-    //                         ELSE 5
-    //                     END,
-    //                     ue.timecreated ASC
-    //             ) as enrollment_priority
-    //         FROM {cohort} coh
-    //         JOIN {cohort_members} cm ON cm.cohortid = coh.id
-    //         JOIN {user} u ON u.id = cm.userid AND u.deleted = 0
-    //         JOIN {user_enrolments} ue ON ue.userid = u.id
-    //         JOIN {enrol} e ON e.id = ue.enrolid
-    //         JOIN {course} c ON c.id = e.courseid AND c.visible = 1
-    //         LEFT JOIN {grade_items} gi ON gi.courseid = c.id AND gi.itemtype = 'course'
-    //         LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
-    //         LEFT JOIN {course_completions} cc ON cc.course = c.id AND cc.userid = u.id
-    //         WHERE 1=1 $cohort_filter
-    //     ) ranked_enrollments
-    //     WHERE enrollment_priority = 1
+    //     SELECT DISTINCT
+    //         CONCAT(u.id, '-', c.id, '-', ue.id) as unique_key,
+    //         u.id as userid,
+    //         u.firstname, 
+    //         u.lastname, 
+    //         u.email,
+    //         c.id as courseid,
+    //         c.fullname AS coursename,
+    //         ROUND(gg.finalgrade, 2) AS grade,
+    //         CASE 
+    //             WHEN cc.timecompleted IS NOT NULL THEN 'Completed'
+    //             WHEN ue.userid IS NOT NULL THEN 'In Progress'
+    //             ELSE 'Not Enrolled'
+    //         END AS status,
+    //         FROM_UNIXTIME(cc.timecompleted) AS completiondate,
+    //         coh.name as cohort_name,
+    //         CASE 
+    //             WHEN e.enrol = 'cohort' THEN 'Cohort Assignment'
+    //             WHEN e.enrol = 'cohortsync' THEN 'Cohort Sync'
+    //             WHEN e.enrol = 'manual' THEN 'Manual Enrollment'
+    //             WHEN e.enrol = 'self' THEN 'Self Enrollment'
+    //             ELSE 'Other (' || e.enrol || ')'
+    //         END as enrollment_type
+    //     FROM {cohort} coh
+    //     JOIN {cohort_members} cm ON cm.cohortid = coh.id
+    //     JOIN {user} u ON u.id = cm.userid AND u.deleted = 0
+    //     JOIN {user_enrolments} ue ON ue.userid = u.id
+    //     JOIN {enrol} e ON e.id = ue.enrolid
+    //     JOIN {course} c ON c.id = e.courseid AND c.visible = 1
+    //     LEFT JOIN {grade_items} gi ON gi.courseid = c.id AND gi.itemtype = 'course'
+    //     LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
+    //     LEFT JOIN {course_completions} cc ON cc.course = c.id AND cc.userid = u.id
+    //     WHERE 1=1 $cohort_filter
     //     ORDER BY cohort_name, lastname, firstname, coursename
     // ";
     $sql = "
         SELECT DISTINCT
-            CONCAT(u.id, '-', c.id, '-', ue.id) as unique_key,
-            u.id as userid,
-            u.firstname, 
-            u.lastname, 
-            u.email,
-            c.id as courseid,
-            c.fullname AS coursename,
-            ROUND(gg.finalgrade, 2) AS grade,
-            CASE 
-                WHEN cc.timecompleted IS NOT NULL THEN 'Completed'
-                WHEN ue.userid IS NOT NULL THEN 'In Progress'
-                ELSE 'Not Enrolled'
-            END AS status,
-            FROM_UNIXTIME(cc.timecompleted) AS completiondate,
-            coh.name as cohort_name,
-            CASE 
-                WHEN e.enrol = 'cohort' THEN 'Cohort Assignment'
-                WHEN e.enrol = 'cohortsync' THEN 'Cohort Sync'
-                WHEN e.enrol = 'manual' THEN 'Manual Enrollment'
-                WHEN e.enrol = 'self' THEN 'Self Enrollment'
-                ELSE 'Other (' || e.enrol || ')'
-            END as enrollment_type
-        FROM {cohort} coh
-        JOIN {cohort_members} cm ON cm.cohortid = coh.id
-        JOIN {user} u ON u.id = cm.userid AND u.deleted = 0
-        JOIN {user_enrolments} ue ON ue.userid = u.id
-        JOIN {enrol} e ON e.id = ue.enrolid
-        JOIN {course} c ON c.id = e.courseid AND c.visible = 1
-        LEFT JOIN {grade_items} gi ON gi.courseid = c.id AND gi.itemtype = 'course'
-        LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
-        LEFT JOIN {course_completions} cc ON cc.course = c.id AND cc.userid = u.id
-        WHERE 1=1 $cohort_filter
-        ORDER BY cohort_name, lastname, firstname, coursename
+        CONCAT(u.id, '-', c.id, '-', ue.id, '-', coh.id) AS unique_key,
+        u.id as userid,
+        u.firstname, 
+        u.lastname, 
+        u.email,
+        c.id as courseid,
+        c.fullname AS coursename,
+        ROUND(gg.finalgrade, 2) AS grade,
+        CASE 
+            WHEN cc.timecompleted IS NOT NULL THEN 'Completed'
+            WHEN ue.userid IS NOT NULL THEN 'In Progress'
+            ELSE 'Not Enrolled'
+        END AS status,
+        FROM_UNIXTIME(cc.timecompleted) AS completiondate,
+        coh.name as cohort_name,
+        CASE 
+            WHEN e.enrol = 'cohort' THEN 'Cohort Assignment'
+            WHEN e.enrol = 'cohortsync' THEN 'Cohort Sync'
+            WHEN e.enrol = 'manual' THEN 'Manual Enrollment'
+            WHEN e.enrol = 'self' THEN 'Self Enrollment'
+            ELSE CONCAT('Other (', e.enrol, ')')
+        END as enrollment_type
+    FROM {cohort} coh
+    JOIN {cohort_members} cm ON cm.cohortid = coh.id
+    JOIN {user} u ON u.id = cm.userid AND u.deleted = 0
+    JOIN {user_enrolments} ue ON ue.userid = u.id
+    JOIN {enrol} e ON e.id = ue.enrolid
+    JOIN {course} c ON c.id = e.courseid AND c.visible = 1
+    LEFT JOIN {grade_items} gi ON gi.courseid = c.id AND gi.itemtype = 'course'
+    LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
+    LEFT JOIN {course_completions} cc ON cc.course = c.id AND cc.userid = u.id
+    WHERE 1=1 $cohort_filter
+    ORDER BY cohort_name, lastname, firstname, coursename
+
     ";
     
     return $DB->get_records_sql($sql, $params);
@@ -365,6 +401,8 @@ if (!empty($supervised_cohort_ids)) {
 // Get data based on view type
 if ($viewtype === 'detailed') {
     $data = get_detailed_progress($supervised_cohort_ids, $cohortid, $courseid);
+} elseif ($viewtype === 'student_progress') {
+    $data = get_student_progress($supervised_cohort_ids, $cohortid, $courseid);
 } else {
     $data = get_cohort_progress_summary($supervised_cohort_ids, $cohortid, $courseid);
 }
@@ -387,6 +425,22 @@ if ($download && !empty($data)) {
                 $row->completiondate,
                 $row->cohort_name,
                 $row->enrollment_type
+            ]);
+        }
+    } elseif ($viewtype === 'student_progress') {
+        header('Content-Disposition: attachment; filename="student_progress_report.csv"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Full Name', 'Email', 'Completed Courses', 'Total Enrolled', 'Progress %', 'Cohorts', 'Last Completion Date']);
+        foreach ($data as $row) {
+            $progress_percent = $row->total_enrolled_courses > 0 ? round(($row->completed_courses / $row->total_enrolled_courses) * 100, 1) : 0;
+            fputcsv($out, [
+                $row->firstname . ' ' . $row->lastname,
+                $row->email,
+                $row->completed_courses,
+                $row->total_enrolled_courses,
+                $progress_percent . '%',
+                $row->cohort_names,
+                $row->last_completion_date
             ]);
         }
     } else {
@@ -513,6 +567,7 @@ echo '<div class="form-group">';
 echo '<label for="viewtype" class="mr-2"><strong>View:</strong></label>';
 echo '<select name="viewtype" id="viewtype" class="custom-select">';
 echo '<option value="summary"' . ($viewtype === 'summary' ? ' selected' : '') . '>Summary View</option>';
+echo '<option value="student_progress"' . ($viewtype === 'student_progress' ? ' selected' : '') . '>Student Progress</option>';
 echo '<option value="detailed"' . ($viewtype === 'detailed' ? ' selected' : '') . '>Detailed View</option>';
 echo '</select>';
 echo '</div>';
@@ -575,6 +630,39 @@ if ($data) {
                     </td>
                     <td><span class="badge badge-'.$progress_color.'">'.$progress_percent.'%</span></td>
                     <td>'.$row->total_courses.'</td>
+                  </tr>';
+        }
+        echo '</table>';
+    } elseif ($viewtype === 'student_progress') {
+        // Student Progress view - individual student completion ratios
+        echo '<div class="alert alert-success">Showing individual student progress within your supervised cohorts</div>';
+        echo '<table class="generaltable boxaligncenter" border="1" cellpadding="5" cellspacing="0">';
+        echo '<tr>
+                <th>Full Name</th>
+                <th>Email</th>
+                <th>Course Progress</th>
+                <th>Completion Rate</th>
+                <th>Cohorts</th>
+                <th>Last Completion</th>
+              </tr>';
+        
+        foreach ($data as $row) {
+            $progress_percent = $row->total_enrolled_courses > 0 ? round(($row->completed_courses / $row->total_enrolled_courses) * 100, 1) : 0;
+            $progress_color = $progress_percent >= 80 ? 'success' : ($progress_percent >= 50 ? 'warning' : 'danger');
+            
+            echo '<tr>
+                    <td><strong>'.$row->firstname.' '.$row->lastname.'</strong></td>
+                    <td>'.$row->email.'</td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-'.$progress_color.'" style="width: '.$progress_percent.'%">
+                                '.$row->completed_courses.' of '.$row->total_enrolled_courses.'
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="badge badge-'.$progress_color.'">'.$progress_percent.'%</span></td>
+                    <td><span class="badge badge-dark">'.$row->cohort_names.'</span></td>
+                    <td>'.$row->last_completion_date.'</td>
                   </tr>';
         }
         echo '</table>';

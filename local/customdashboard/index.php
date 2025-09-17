@@ -17,9 +17,6 @@ $PAGE->set_pagelayout('admin');
 
 
 echo $OUTPUT->header();
-// if (isset($hide_nav_css)) {
-//     echo $hide_nav_css;
-// }
 
 global $DB, $CFG;
 
