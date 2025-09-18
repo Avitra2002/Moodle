@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/completion_report/db" VERSION="2025091800" COMMENT="Course history tracking">
+    <TABLES>
+        <TABLE NAME="local_coursehistory" COMMENT="External/old course history records">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="email" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="personal_type" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="fullname" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="position_number" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="position_characteristics" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="administrative_position" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="position_lineofwork" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="position_type" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="position_level" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="course_type" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="course_group" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="course_name" TYPE="char" LENGTH="512" NOTNULL="false"/>
+                <FIELD NAME="enrolment_date" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="completion_date" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="number_of_days" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="intake_no" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="organizing_agency" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="venue" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="organizing_country" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="scholarship_name" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="scholarship_country" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="remarks" TYPE="text" NOTNULL="false"/>
+                <FIELD NAME="transmittal_letter_no" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="transmittal_letter_date" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="project_name" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="order_number" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="order_date" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="division_department" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="division_department_lvl1" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="division_department_lvl2" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="division_department_operational" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="division_department_op_lvl1" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="division_department_op_lvl2" TYPE="char" LENGTH="255" NOTNULL="false"/>
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+                <KEY NAME="user_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+            </KEYS>
+        </TABLE>
+    </TABLES>
+</XMLDB>

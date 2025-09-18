@@ -24,6 +24,6 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2023100900;
+$plugin->version   = 2025091900;
 $plugin->requires  = 2020110300;
 $plugin->component = 'local_completion_report';

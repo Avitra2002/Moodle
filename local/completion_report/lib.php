@@ -23,6 +23,7 @@
  */
 defined('MOODLE_INTERNAL') || die();
 
+
 function local_completion_report_extend_navigation(global_navigation $navigation){
     global $DB, $USER, $PAGE, $CFG;
     $context = context_system::instance();
@@ -101,3 +102,144 @@ function unset_filter_variables(){
 }
 
 
+function local_completion_report_myprofile_navigation(core_user\output\myprofile\tree $tree, $user, $iscurrentuser, $course) {
+    global $DB;
+
+    $category = new core_user\output\myprofile\category('traininghistory', 'Training History/Completed Courses', 'contact');
+    $tree->add_category($category);
+
+    //external training records
+    $external_records = $DB->get_records('local_coursehistory', ['userid' => $user->id], 'completion_date DESC');
+    
+    // moodle course completions
+    $sql = "SELECT cc.id, c.fullname as course_name, cc.timecompleted as completion_date, 'moodle' as source
+            FROM {course_completions} cc
+            JOIN {course} c ON cc.course = c.id
+            WHERE cc.userid = ? AND cc.timecompleted IS NOT NULL
+            ORDER BY cc.timecompleted DESC";
+    $moodle_completions = $DB->get_records_sql($sql, [$user->id]);
+    
+    
+    $all_trainings = [];
+    
+    foreach ($external_records as $rec) {
+        $all_trainings[] = [
+            'name' => format_string($rec->course_name),
+            'date' => $rec->completion_date,
+            'source' => 'external'
+        ];
+    }
+    
+    foreach ($moodle_completions as $completion) {
+        $all_trainings[] = [
+            'name' => format_string($completion->course_name),
+            'date' => $completion->completion_date,
+            'source' => 'moodle'
+        ];
+    }
+    
+    // Sort all trainings by date (newest first)
+    usort($all_trainings, function($a, $b) {
+        return $b['date'] - $a['date'];
+    });
+    
+    $content = '';
+    
+    if (!empty($all_trainings)) {
+        // Summary statistics
+        $total_count = count($all_trainings);
+        $moodle_count = count($moodle_completions);
+        $external_count = count($external_records);
+        
+        $content .= '<div class="alert alert-info py-2 mb-3">';
+        $content .= '<small class="text-muted">(' . $moodle_count . ' Moodle, ' . $external_count . ' External)</small>';
+        $content .= '</div>';
+        
+        $list_id = 'training-list-' . $user->id;
+        $button_id = 'training-btn-' . $user->id;
+        
+        $content .= '<div id="' . $list_id . '">';
+        $content .= '<ul class="list-unstyled small">';
+        
+        foreach ($all_trainings as $index => $training) {
+            $icon = $training['source'] == 'moodle' ? 
+                '<i class="fa fa-graduation-cap text-primary mr-1"></i>' : 
+                '<i class="fa fa-certificate text-success mr-1"></i>';
+            
+            
+            if ($index >= 5) {
+                $content .= '<li class="mb-1 hidden-training-item" style="display: none;">';
+            } else {
+                $content .= '<li class="mb-1">';
+            }
+            
+            $content .= $icon . $training['name'];
+            $content .= '</li>';
+        }
+        
+        $content .= '</ul>';
+        
+        // Add show more button if needed
+        if ($total_count > 5) {
+            $remaining = $total_count - 5;
+            $content .= '<button id="' . $button_id . '" class="btn btn-sm btn-outline-secondary" type="button">';
+            $content .= 'Show ' . $remaining . ' more';
+            $content .= '</button>';
+        }
+        
+        $content .= '</div>'; 
+        
+
+        if ($total_count > 5) {
+            $remaining = $total_count - 5;
+            $content .= "
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var button = document.getElementById('" . $button_id . "');
+                var container = document.getElementById('" . $list_id . "');
+                
+                if (button && container) {
+                    button.addEventListener('click', function() {
+                        var hiddenItems = container.querySelectorAll('.hidden-training-item');
+                        console.log('Found ' + hiddenItems.length + ' hidden items');
+                        
+                        var isHidden = hiddenItems.length > 0 && hiddenItems[0].style.display === 'none';
+                        console.log('Currently hidden: ' + isHidden);
+                        
+                        for (var i = 0; i < hiddenItems.length; i++) {
+                            if (isHidden) {
+                                hiddenItems[i].style.display = 'list-item';
+                            } else {
+                                hiddenItems[i].style.display = 'none';
+                            }
+                        }
+                        
+                        if (isHidden) {
+                            button.textContent = 'Show less';
+                        } else {
+                            button.textContent = 'Show " . $remaining . " more';
+                        }
+                    });
+                } else {
+                    console.log('Button or container not found');
+                    console.log('Button:', button);
+                    console.log('Container:', container);
+                }
+            });
+            </script>";
+        }
+        
+    } else {
+        $content .= '<div class="text-muted">No completed trainings found.</div>';
+    }
+
+    $node = new core_user\output\myprofile\node(
+        'traininghistory',
+        'trainings', 
+        null,
+        null,
+        null,
+        $content
+    );
+    $tree->add_node($node);
+}

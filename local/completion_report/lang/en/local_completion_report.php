@@ -62,3 +62,8 @@ $string['completion_status'] = 'Completion Status';
 $string['uploadfile'] = 'Upload CSV File';
 $string['upload'] = 'Upload';
 $string['downloadsamplecsv'] = '📥 Download Sample CSV File';
+
+$string['importexternal'] = 'Import External Training History';
+$string['reportexternal'] = 'External Training Report';
+$string['upload'] = 'Upload';
+$string['file'] = 'CSV File';
