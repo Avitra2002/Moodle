@@ -68,6 +68,11 @@ if ($form->is_cancelled()) {
             break;
     }
 
+    $jobid = \local_cohortenrolsync\services\batch_manager::create_bulk_job(
+        $data->operation_type,
+        $operationdata
+    );
+
     echo $OUTPUT->header();
 
     $operationname = format_string($data->operation_type);
