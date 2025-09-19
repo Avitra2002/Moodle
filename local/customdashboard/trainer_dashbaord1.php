@@ -6,7 +6,7 @@ require_login();
 $PAGE->set_url(new moodle_url('/local/customdashboard/index.php'));
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Admin Dashboard');
-$PAGE->set_heading('Custom Admin Dashboard');
+$PAGE->set_heading('Trainer Dashboard');
 $PAGE->set_pagelayout('admin');
 
 echo $OUTPUT->header();
@@ -27,7 +27,7 @@ $totalteachers = $DB->count_records_sql("
     FROM {user} u
     JOIN {role_assignments} ra ON ra.userid = u.id
     JOIN {role} r ON r.id = ra.roleid
-     WHERE r.shortname IN ('Supervisor', 'Supervisor','manager') AND u.deleted = 0
+     WHERE r.shortname IN ('Supervisor','manager') AND u.deleted = 0
 ");
 
 $totalcourses = $DB->count_records('course') - 1;
@@ -40,7 +40,7 @@ foreach ($certification_course_ids as $cert_course_id) {
     $course = get_course($cert_course_id);
     $context = context_course::instance($cert_course_id);
     $students = get_enrolled_users($context, 'moodle/course:view', 0, 'u.id');
-	$certification_course_ids[]=$course->id;
+    $certification_course_ids[] = $course->id;
 
     foreach ($students as $student) {
         $progress = \core_completion\progress::get_course_progress_percentage($course, $student->id);
@@ -51,51 +51,6 @@ foreach ($certification_course_ids as $cert_course_id) {
 }
 
 $total_certified = count($certified_users);
-
-// 📊 Course-wise Stats
-$userid = $USER->id;
-
-// Get all courses where the logged-in user is a teacher (e.g., roleid = 3 for editingteacher or adjust if custom)
-$teacher_courses = $DB->get_records_sql("
-    SELECT DISTINCT c.id, c.fullname
-    FROM {course} c
-    JOIN {context} ctx ON ctx.contextlevel = 50 AND ctx.instanceid = c.id
-    JOIN {role_assignments} ra ON ra.contextid = ctx.id
-    JOIN {role} r ON r.id = ra.roleid
-    WHERE ra.userid = :userid
-      AND r.shortname IN ('supervisor')
-      AND c.id != 1
-", ['userid' => $userid]);
-
-$courses = $teacher_courses;
-
-$labels = [];
-$enrolled_data = [];
-$completed_data = [];
-$inprogress_data = [];
-
-foreach ($courses as $course) {
-    $context = context_course::instance($course->id);
-    $students = get_enrolled_users($context, '', 0);
-
-    $total = count($students);
-    $completed = 0;
-    $inprogress = 0;
-
-    foreach ($students as $student) {
-        $progress = \core_completion\progress::get_course_progress_percentage($course, $student->id);
-        if ($progress === 100) {
-            $completed++;
-        } else {
-            $inprogress++;
-        }
-    }
-
-    $labels[] = $course->fullname;
-    $enrolled_data[] = $total;
-    $completed_data[] = $completed;
-    $inprogress_data[] = $inprogress;
-}
 ?>
 
 <!-- 🎨 STYLES -->
@@ -120,47 +75,30 @@ foreach ($courses as $course) {
 .tile-courses   { background-color: #6f42c1; }
 .tile-certified { background-color: #17a2b8; }
 
-.graph-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 30px;
-}
-.graph-row .graph {
-    flex: 1 1 calc(50% - 30px);
-}
-
-ul.due-list {
-    margin-top: 40px;
-    padding-left: 20px;
-}
-ul.due-list li {
-    margin-bottom: 10px;
-}
-ul.due-list span {
-    color: #cc0000;
-}
-
-.graph-row-small {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    justify-content: center;
-    align-items: flex-start;
-    margin-top: 20px;
-}
-
-.graph-small {
-    flex: 1 1 45%;
-    //max-width: 400px;
-}
-
-.graph-small canvas {
-    width: 100% !important;
-    height: auto !important;
-    background: #fff;
-    padding: 10px;
+.upcoming-due-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 30px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     border-radius: 10px;
-    box-sizing: border-box;
+    overflow: hidden;
+}
+.upcoming-due-table th {
+    background-color: #007bff;
+    color: #fff;
+    padding: 12px;
+    text-align: left;
+}
+.upcoming-due-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e0e0e0;
+}
+.upcoming-due-table tr:hover {
+    background-color: #f5f5f5;
+}
+.due-date {
+    color: #cc0000;
+    font-weight: bold;
 }
 </style>
 
@@ -180,81 +118,8 @@ ul.due-list span {
     </div>
 </div>
 
-<!-- 📊 GRAPHS -->
-<div class="graph-row-small">
-    <div class="graph-small">
-        <canvas id="enrollmentChart"></canvas>
-    </div>
-    <div class="graph-small">
-        <canvas id="statusChart"></canvas>
-    </div>
-</div>
-
-<!-- 📈 CHARTS SCRIPT -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-const labels = <?= json_encode($labels) ?>;
-const enrolled = <?= json_encode($enrolled_data) ?>;
-const completed = <?= json_encode($completed_data) ?>;
-const inProgress = <?= json_encode($inprogress_data) ?>;
-
-// Enrollments
-new Chart(document.getElementById('enrollmentChart'), {
-    type: 'bar',
-    data: {
-        labels: labels,
-        datasets: [{
-            label: 'Enrolled Students',
-            data: enrolled,
-            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            title: { display: true, text: 'Enrollment per Course' }
-        },
-        scales: {
-            y: { beginAtZero: true, ticks: { stepSize: 1 } }
-        }
-    }
-});
-
-// Completion Status
-new Chart(document.getElementById('statusChart'), {
-    type: 'bar',
-    data: {
-        labels: labels,
-        datasets: [
-           {
-                label: 'Completed',
-                data: completed,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)'
-            },
-            {
-                label: 'In Progress',
-                data: inProgress,
-                backgroundColor: 'rgba(255, 205, 86, 0.6)'
-            }
-        ]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            title: { display: true, text: 'Completion Status per Course' }
-        },
-        scales: {
-            y: { beginAtZero: true, ticks: { stepSize: 1 } }
-        }
-    }
-});
-</script>
-
-
-
 <?php
+// 📋 Upcoming due dates
 $modules = ['assign' => 'duedate', 'quiz' => 'timeclose', 'forum' => 'duedate'];
 $upcoming = [];
 
@@ -284,13 +149,12 @@ foreach ($modules as $modname => $timeduefield) {
       AND c.visible = 1
 ";
 
-$params = [
-    'mod' => $modname,
-    'mod1' => $modname,
-    'now' => time(),
-    'userid' => $USER->id
-];
-
+    $params = [
+        'mod' => $modname,
+        'mod1' => $modname,
+        'now' => time(),
+        'userid' => $USER->id
+    ];
 
     $records = $DB->get_records_sql($sql, $params);
 
@@ -310,281 +174,86 @@ usort($upcoming, fn($a, $b) => $a->duetime - $b->duetime);
 $upcoming = array_slice($upcoming, 0, 5);
 ?>
 
-<!-- 🎨 Styling -->
-<style>
-.upcoming-due-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 30px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    border-radius: 10px;
-    overflow: hidden;
-}
-.upcoming-due-table th {
-    background-color: #007bff;
-    color: #fff;
-    padding: 12px;
-    text-align: left;
-}
-.upcoming-due-table td {
-    padding: 12px;
-    border-bottom: 1px solid #e0e0e0;
-}
-.upcoming-due-table tr:hover {
-    background-color: #f5f5f5;
-}
-.due-date {
-    color: #cc0000;
-    font-weight: bold;
-}
+<!-- 📊 Reports Section -->
+<h3 style="margin-top:40px;">📑 Quick Access Reports</h3>
 
+<div class="reports-grid">
+    <div class="report-card">
+        <h4> 🛠️ Bulk Modification</h4>
+        <ul>
+            <li><a href="<?= $CFG->wwwroot ?>/local/cohortenrolsync/index.php">Bulk Modification Form</a></li>
 
-.graph-row1 {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 30px;
-}
-.graph-row1 .graph1 {
-    flex: 1 1 calc(50% - 30px);
-}
-#overallProgressChart {
-    /* pick the size you like */
-    max-width: 300px;   /* width limit  */
-    max-height: 300px;  /* height limit */
-    margin: auto;       /* keep it centred */
-}
-</style>
-
-<div class="graph-row1 two-column">
-    <div class="graph1">
-        <canvas id="overallProgressChart"></canvas>
+        </ul>
     </div>
-    <div class="graph1">
-        <canvas id="top3StudentsPerCourseChart"></canvas>
+
+    <!-- Progress Reports -->
+    <div class="report-card">
+        <h4>📈 Progress Reports</h4>
+        <ul>
+            <li><a href="<?= $CFG->wwwroot ?>/local/customdashboard/course_completion.php">User Progress Report</a></li>
+            <li><a href="<?= $CFG->wwwroot ?>/local/completion_report/course_report.php">Course Completion Report</a></li>
+        </ul>
+    </div>
+
+    <!-- To Do / Review -->
+    <div class="report-card">
+        <h4>📝 To Do / Review</h4>
+        <ul>
+            <li><a href="<?= $CFG->wwwroot ?>/local/approval/approve.php">CVs to Review</a></li>
+            <li><a href="<?= $CFG->wwwroot ?>/local/jdapproval/approve.php">JDs to Review</a></li>
+        </ul>
     </div>
 </div>
 
-
-<?php
-
-$overall_enrolled = 0;
-$overall_completed = 0;
-$overall_inprogress = 0;
-
-foreach ($courses as $course) {
-    $context = context_course::instance($course->id);
-    $students = get_enrolled_users($context, '', 0);
-
-    foreach ($students as $student) {
-        // Ensure completion is enabled
-        if (!completion_info::is_enabled_for_site()) {
-            continue;
-        }
-
-        $completion = new completion_info($course);
-        if (!$completion->is_enabled()) {
-            continue;
-        }
-
-        $progress = \core_completion\progress::get_course_progress_percentage($course, $student->id);
-        if ($progress === 100) {
-            $overall_completed++;
-        } elseif ($progress > 0) {
-            $overall_inprogress++;
-        }
-    }
-
-    $overall_enrolled += count($students);
+<style>
+.reports-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 25px;
+    margin-top: 20px;
+    margin-bottom: 40px;
 }
 
-// Fallback: avoid divide-by-zero or empty pie chart
-if ($overall_completed + $overall_inprogress === 0) {
-    $overall_completed = 1;
-    $overall_inprogress = 0;
-}
-?>
-
-
-
-<script>
-const totalCompleted = <?= $overall_completed ?>;
-const totalInProgress = <?= $overall_inprogress ?>;
-
-new Chart(document.getElementById('overallProgressChart'), {
-    type: 'pie',
-    data: {
-        labels: ['Completed', 'In Progress'],
-        datasets: [{
-            data: [totalCompleted, totalInProgress],
-            backgroundColor: ['#4bc0c0', '#ffcd56'],
-            borderWidth: 1
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            title: {
-                display: true,
-                text: 'Overall Course Progress'
-            }
-        }
-    }
-});
-</script>
-<?php
-$course_ids = array_map(fn($c) => $c->id, $courses);
-
-if (!empty($course_ids)) {
-    list($in_sql, $params) = $DB->get_in_or_equal($course_ids);
-
-    $raw_sql = "
-        SELECT
-            u.id AS userid,
-            u.firstname,
-            u.lastname,
-            gg.finalgrade,
-            c.fullname AS coursename,
-            c.id AS courseid
-        FROM {grade_grades} gg
-        JOIN {grade_items} gi ON gi.id = gg.itemid
-        JOIN {user} u ON u.id = gg.userid
-        JOIN {course} c ON c.id = gi.courseid
-        WHERE gg.finalgrade IS NOT NULL
-          AND gi.itemtype = 'course'
-          AND u.deleted = 0
-          AND c.id $in_sql
-        ORDER BY c.id ASC, gg.finalgrade DESC
-    ";
-
-    $records = $DB->get_records_sql($raw_sql, $params);
-} else {
-    $records = [];
+.report-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
 }
 
-
-$top3_per_course = [];
-
-// Group and take top 3 per course
-foreach ($records as $rec) {
-    $cid = $rec->courseid;
-
-    if (!isset($top3_per_course[$cid])) {
-        $top3_per_course[$cid] = [
-            'coursename' => $rec->coursename,
-            'students' => []
-        ];
-    }
-
-    if (count($top3_per_course[$cid]['students']) < 3) {
-        $top3_per_course[$cid]['students'][] = [
-            'name' => fullname((object)[
-                'firstname' => $rec->firstname,
-                'lastname'  => $rec->lastname
-            ]),
-            'grade' => round($rec->finalgrade, 2)
-        ];
-    }
+.report-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
-// Structure for Chart.js
-$chart_labels = [];       // Courses
-$student1_data = [];      // Top 1
-$student2_data = [];      // Top 2
-$student3_data = [];      // Top 3
-$student1_names = [];
-$student2_names = [];
-$student3_names = [];
-
-foreach ($top3_per_course as $course) {
-    $chart_labels[] = $course['coursename'];
-
-    $s1 = $course['students'][0] ?? ['name' => '', 'grade' => 0];
-    $s2 = $course['students'][1] ?? ['name' => '', 'grade' => 0];
-    $s3 = $course['students'][2] ?? ['name' => '', 'grade' => 0];
-
-    $student1_data[] = $s1['grade'];
-    $student2_data[] = $s2['grade'];
-    $student3_data[] = $s3['grade'];
-
-    $student1_names[] = $s1['name'];
-    $student2_names[] = $s2['name'];
-    $student3_names[] = $s3['name'];
+.report-card h4 {
+    margin-bottom: 12px;
+    color: #007bff;
 }
-?>
 
-<script>
-const courseLabels = <?= json_encode($chart_labels) ?>;
-const grades1 = <?= json_encode($student1_data) ?>;
-const grades2 = <?= json_encode($student2_data) ?>;
-const grades3 = <?= json_encode($student3_data) ?>;
-const names1 = <?= json_encode($student1_names) ?>;
-const names2 = <?= json_encode($student2_names) ?>;
-const names3 = <?= json_encode($student3_names) ?>;
+.report-card ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
 
-new Chart(document.getElementById('top3StudentsPerCourseChart'), {
-    type: 'bar',
-    data: {
-        labels: courseLabels,
-        datasets: [
-            {
-                label: '1st Topper',
-                data: grades1,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            },
-            {
-                label: '2nd Topper',
-                data: grades2,
-                backgroundColor: 'rgba(255, 205, 86, 0.6)',
-                borderColor: 'rgba(255, 205, 86, 1)',
-                borderWidth: 1
-            },
-            {
-                label: '3rd Topper',
-                data: grades3,
-                backgroundColor: 'rgba(255, 99, 132, 0.6)',
-                borderColor: 'rgba(255, 99, 132, 1)',
-                borderWidth: 1
-            }
-        ]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        const index = context.dataIndex;
-                        const datasetIndex = context.datasetIndex;
+.report-card li {
+    margin: 8px 0;
+}
 
-                        let name = '';
-                        if (datasetIndex === 0) name = names1[index];
-                        else if (datasetIndex === 1) name = names2[index];
-                        else if (datasetIndex === 2) name = names3[index];
+.report-card a {
+    text-decoration: none;
+    color: #333;
+    font-weight: 500;
+    transition: color 0.2s;
+}
 
-                        return `${name}: ${context.parsed.y}`;
-                    }
-                }
-            },
-            title: {
-                display: true,
-                text: 'Top 3 Students per Course (Final Grade)'
-            }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                max: 100,
-                title: {
-                    display: true,
-                    text: 'Grade (%)'
-                }
-            }
-        }
-    }
-});
-</script>
+.report-card a:hover {
+    color: #007bff;
+}
+</style>
+
 <!-- 📋 Table Output -->
 <h3>🕒 Top 5 Upcoming Activity Due Dates</h3>
 
@@ -616,6 +285,7 @@ new Chart(document.getElementById('top3StudentsPerCourseChart'), {
 <?php else: ?>
     <p>No upcoming due dates found.</p>
 <?php endif; ?>
+
 <?php
 echo $OUTPUT->footer();
 ?>

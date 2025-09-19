@@ -44,7 +44,7 @@ $requiredheaders = [
     'Project Name',
     'Order Number',
     'Order Date',
-    'Divison/Department',
+    'Division/Department',
     'One level below the Division/Department',
     'Two levels below the Division/Department',
     'Division/Department (Operational)',
@@ -89,81 +89,96 @@ if ($form->is_cancelled()) {
 
     $missing = array_diff($requiredheaders, $headers);
 
+    $canprocess = true;
+
     if (!empty($missing)) {
         echo $OUTPUT->notification(
             "❌ Import failed. Missing required columns: " . implode(', ', $missing),
             'notifyproblem'
         );
-        echo $OUTPUT->footer();
-        exit;
+        // echo $OUTPUT->footer();
+        // exit;
+        $canprocess=false;
     }
 
     $rownum = 1;
     $inserted = 0; $linked = 0; $unlinked = 0;
 
-    while ($row = $csv->next()) {
-        $rownum++;
-        $record = array_combine($headers, $row);
+    if($canprocess){
 
-        // Match user by email
-        $email = strtolower(trim($record['email'] ?? ''));
-        $user = null;
-        if ($email) {
-            $user = $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+        while ($row = $csv->next()) {
+            $rownum++;
+            $record = array_combine($headers, $row);
+
+            // Match user by email
+            $email = strtolower(trim($record['email'] ?? ''));
+            $user = null;
+            if ($email) {
+                $user = $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+            }
+
+            // Prepare record
+            $new = new stdClass();
+            $new->userid       = $user ? $user->id : null;
+            $new->email        = $email ?: null;
+            $new->fullname     = $record['Full Name'] ?? null;
+            $new->personal_type = $record['Personal Type'] ?? null;
+            $new->position_number = $record['Position Number'] ?? null;
+            $new->position_characteristics = $record['Position Characteristics'] ?? null;
+            $new->administrative_position = $record['Administrative Position'] ?? null;
+            $new->position_lineofwork = $record['Position Line-of-work'] ?? null;
+            $new->position_type = $record['Position-Type'] ?? null;
+            $new->position_level = $record['Position Level'] ?? null;
+            $new->course_type = $record['Course Type'] ?? null;
+            $new->course_group = $record['Course Group'] ?? null;
+            $new->course_name  = $record['Course Name'] ?? null;
+            $new->enrolment_date = !empty($record['Enrolment Date']) ? strtotime($record['Enrolment Date']) : null;
+            $new->completion_date = !empty($record['Completion Date']) ? strtotime($record['Completion Date']) : null;
+            $new->number_of_days = $record['Number of Days'] ?? null;
+            $new->intake_no = $record['Intake No.'] ?? null;
+            $new->organizing_agency = $record['Organizing Agency'] ?? null;
+            $new->venue = $record['Venue'] ?? null;
+            $new->organizing_country = $record['Organizing Country'] ?? null;
+            $new->scholarship_name = $record['Name of Scholarship'] ?? null;
+            $new->scholarship_country = $record['Scholarship Sponsoring Country'] ?? null;
+            $new->remarks = $record['Remarks'] ?? null;
+            $new->transmittal_letter_no = $record['Transmittal Letter No.'] ?? null;
+            $new->transmittal_letter_date = !empty($record['Date of Transmittal Letter']) ? strtotime($record['Date of Transmittal Letter']) : null;
+            $new->project_name = $record['Project Name'] ?? null;
+            $new->order_number = $record['Order Number'] ?? null;
+            $new->order_date = !empty($record['Order Date']) ? strtotime($record['Order Date']) : null;
+            $new->division_department = $record['Division/Department'] ?? null;
+            $new->division_department_lvl1 = $record['One level below the Division/Department'] ?? null;
+            $new->division_department_lvl2 = $record['Two levels below the Division/Department'] ?? null;
+            $new->division_department_operational = $record['Division/Department (Operational)'] ?? null;
+            $new->division_department_op_lvl1 = $record['One level below the Division/Department (Operational)'] ?? null;
+            $new->division_department_op_lvl2 = $record['Two levels below the Division/Department (Operational)'] ?? null;
+            $new->timecreated = time();
+
+            $DB->insert_record('local_coursehistory', $new);
+
+            $inserted++;
+            if ($user) {
+                $linked++;
+            } else {
+                $unlinked++;
+            }
         }
 
-        // Prepare record
-        $new = new stdClass();
-        $new->userid       = $user ? $user->id : null;
-        $new->email        = $email ?: null;
-        $new->fullname     = $record['Full Name'] ?? null;
-        $new->personal_type = $record['Personal Type'] ?? null;
-        $new->position_number = $record['Position Number'] ?? null;
-        $new->position_characteristics = $record['Position Characteristics'] ?? null;
-        $new->administrative_position = $record['Administrative Position'] ?? null;
-        $new->position_lineofwork = $record['Position Line-of-work'] ?? null;
-        $new->position_type = $record['Position-Type'] ?? null;
-        $new->position_level = $record['Position Level'] ?? null;
-        $new->course_type = $record['Course Type'] ?? null;
-        $new->course_group = $record['Course Group'] ?? null;
-        $new->course_name  = $record['Course Name'] ?? null;
-        $new->enrolment_date = !empty($record['Enrolment Date']) ? strtotime($record['Enrolment Date']) : null;
-        $new->completion_date = !empty($record['Completion Date']) ? strtotime($record['Completion Date']) : null;
-        $new->number_of_days = $record['Number of Days'] ?? null;
-        $new->intake_no = $record['Intake No.'] ?? null;
-        $new->organizing_agency = $record['Organizing Agency'] ?? null;
-        $new->venue = $record['Venue'] ?? null;
-        $new->organizing_country = $record['Organizing Country'] ?? null;
-        $new->scholarship_name = $record['Name of Scholarship'] ?? null;
-        $new->scholarship_country = $record['Scholarship Sponsoring Country'] ?? null;
-        $new->remarks = $record['Remarks'] ?? null;
-        $new->transmittal_letter_no = $record['Transmittal Letter No.'] ?? null;
-        $new->transmittal_letter_date = !empty($record['Date of Transmittal Letter']) ? strtotime($record['Date of Transmittal Letter']) : null;
-        $new->project_name = $record['Project Name'] ?? null;
-        $new->order_number = $record['Order Number'] ?? null;
-        $new->order_date = !empty($record['Order Date']) ? strtotime($record['Order Date']) : null;
-        $new->division_department = $record['Divison/Department'] ?? null;
-        $new->division_department_lvl1 = $record['One level below the Division/Department'] ?? null;
-        $new->division_department_lvl2 = $record['Two levels below the Division/Department'] ?? null;
-        $new->division_department_operational = $record['Division/Department (Operational)'] ?? null;
-        $new->division_department_op_lvl1 = $record['One level below the Division/Department (Operational)'] ?? null;
-        $new->division_department_op_lvl2 = $record['Two levels below the Division/Department (Operational)'] ?? null;
-        $new->timecreated = time();
+        $csv->cleanup(true);
 
-        $DB->insert_record('local_coursehistory', $new);
-
-        $inserted++;
-        if ($user) {
-            $linked++;
-        } else {
-            $unlinked++;
-        }
+        echo $OUTPUT->notification("✅ Import completed: $inserted records ($linked linked, $unlinked unlinked).", 'notifysuccess');
     }
-
-    $csv->cleanup(true);
-
-    echo $OUTPUT->notification("✅ Import completed: $inserted records ($linked linked, $unlinked unlinked).", 'notifysuccess');
 }
 
 $form->display();
+echo html_writer::div(
+    html_writer::link(
+        new moodle_url('/local/completion_report/report.php'),
+        '📑 Go to Training History Report',
+        ['class' => 'btn btn-primary', 'style' => 'margin:20px 0; display:inline-block;']
+    ),
+    'report-nav-btn'
+);
+
 echo $OUTPUT->footer();
