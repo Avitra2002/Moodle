@@ -619,18 +619,28 @@ if ($data) {
             $progress_color = $progress_percent >= 80 ? 'success' : ($progress_percent >= 50 ? 'warning' : 'danger');
             
             echo '<tr>
-                    <td><strong>'.$row->cohort_name.'</strong></td>
-                    <td>'.$row->total_members.'</td>
-                    <td>
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar bg-'.$progress_color.'" style="width: '.$progress_percent.'%">
-                                '.$row->completed_enrollments.' of '.$row->total_enrollments.'
-                            </div>
+                <td><strong>' . $row->cohort_name . '</strong></td>
+                <td>' . $row->total_members . '</td>
+                <td>
+                    <div class="progress" style="height: 20px; position: relative;">
+                        <div class="progress-bar bg-' . $progress_color . '" 
+                            style="width: ' . $progress_percent . '%;">
                         </div>
-                    </td>
-                    <td><span class="badge badge-'.$progress_color.'">'.$progress_percent.'%</span></td>
-                    <td>'.$row->total_courses.'</td>
-                  </tr>';
+                        <span style="position: absolute; 
+                                    top: 0; left: 0; right: 0; 
+                                    height: 20px; 
+                                    display: flex; 
+                                    align-items: center; 
+                                    justify-content: center; 
+                                    font-weight: bold; 
+                                    color: #000;">
+                            ' . $row->completed_enrollments . ' of ' . $row->total_enrollments . '
+                        </span>
+                    </div>
+                </td>
+                <td><span class="badge badge-' . $progress_color . '">' . $progress_percent . '%</span></td>
+                <td>' . $row->total_courses . '</td>
+            </tr>';
         }
         echo '</table>';
     } elseif ($viewtype === 'student_progress') {
@@ -651,19 +661,28 @@ if ($data) {
             $progress_color = $progress_percent >= 80 ? 'success' : ($progress_percent >= 50 ? 'warning' : 'danger');
             
             echo '<tr>
-                    <td><strong>'.$row->firstname.' '.$row->lastname.'</strong></td>
-                    <td>'.$row->email.'</td>
-                    <td>
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar bg-'.$progress_color.'" style="width: '.$progress_percent.'%">
-                                '.$row->completed_courses.' of '.$row->total_enrolled_courses.'
-                            </div>
+                <td><strong>' . $row->firstname . ' ' . $row->lastname . '</strong></td>
+                <td>' . $row->email . '</td>
+                <td>
+                    <div class="progress" style="height: 20px; position: relative;">
+                        <div class="progress-bar bg-' . $progress_color . '" style="width: ' . $progress_percent . '%;">
                         </div>
-                    </td>
-                    <td><span class="badge badge-'.$progress_color.'">'.$progress_percent.'%</span></td>
-                    <td><span class="badge badge-dark">'.$row->cohort_names.'</span></td>
-                    <td>'.$row->last_completion_date.'</td>
-                  </tr>';
+                        <span style="position: absolute; 
+                                    top: 0; left: 0; right: 0; 
+                                    height: 20px; 
+                                    display: flex; 
+                                    align-items: center; 
+                                    justify-content: center; 
+                                    font-weight: bold; 
+                                    color: #000;">
+                            ' . $row->completed_courses . ' of ' . $row->total_enrolled_courses . '
+                        </span>
+                    </div>
+                </td>
+                <td><span class="badge badge-' . $progress_color . '">' . $progress_percent . '%</span></td>
+                <td><span class="badge badge-dark">' . $row->cohort_names . '</span></td>
+                <td>' . $row->last_completion_date . '</td>
+            </tr>';
         }
         echo '</table>';
     } else {

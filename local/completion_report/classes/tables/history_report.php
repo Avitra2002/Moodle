@@ -45,7 +45,6 @@ class history_report extends \table_sql {
             'division_department_op_lvl2' => 'Two levels below (Operational)',
         ];
 
-
         $this->define_columns(array_keys($columns));
         $this->define_headers(array_values($columns));
 
@@ -70,7 +69,6 @@ class history_report extends \table_sql {
     }
 
     public function col_fullname($row) {
-        global $OUTPUT;
         if ($row->userid) {
             $url = new \moodle_url('/user/profile.php', ['id' => $row->userid]);
             return \html_writer::link($url, $row->fullname);
@@ -80,5 +78,21 @@ class history_report extends \table_sql {
 
     public function col_completion_date($row) {
         return $row->completion_date ? userdate($row->completion_date) : '';
+    }
+
+    public function get_sql_where() {
+        global $DB;
+
+        $where = '';
+        $params = [];
+
+        // Only search fullname.
+        if (!empty($this->search)) {
+            $search = $DB->sql_like('fullname', ':search', false, false);
+            $where .= $search;
+            $params['search'] = '%' . $this->search . '%';
+        }
+
+        return [$where, $params];
     }
 }
