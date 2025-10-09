@@ -24,6 +24,9 @@ if ($form->is_cancelled()) {
     switch ($data->operation_type) {
         case 'assign_courses_to_users':
             $operationdata['userids']   = $data->userids ?? [];
+            if (in_array(0, $operationdata['userids'])) {
+                $operationdata['userids'] = array_keys($DB->get_records('user', ['deleted' => 0, 'suspended' => 0]));
+            }
             $operationdata['courseids'] = $data->courseids ?? [];
             break;
 
@@ -39,11 +42,17 @@ if ($form->is_cancelled()) {
 
         case 'assign_category_to_users':
             $operationdata['userids']   = $data->userids_category ?? [];
+            if (in_array(0, $operationdata['userids'])) {
+                $operationdata['userids'] = array_keys($DB->get_records('user', ['deleted' => 0, 'suspended' => 0]));
+            }
             $operationdata['categoryid']= $data->categoryid_users ?? null;
             break;
 
         case 'remove_courses_from_users':
             $operationdata['userids']   = $data->remove_userids_users ?? [];
+            if (in_array(0, $operationdata['userids'])) {
+                $operationdata['userids'] = array_keys($DB->get_records('user', ['deleted' => 0, 'suspended' => 0]));
+            }
             $operationdata['courseids'] = $data->remove_courseids_users ?? [];
             break;
 
@@ -60,11 +69,17 @@ if ($form->is_cancelled()) {
         case 'remove_users_from_cohort':
             $operationdata['cohortid'] = $data->remove_cohortid_users ?? null;
             $operationdata['userids']  = $data->remove_userids_cohort ?? [];
+            if (in_array(0, $operationdata['userids'])) {
+                $operationdata['userids'] = array_keys($DB->get_records('user', ['deleted' => 0, 'suspended' => 0]));
+            }
             break;
 
         case 'remove_users_from_category':
             $operationdata['categoryid'] = $data->remove_categoryid_users ?? null;
             $operationdata['userids']    = $data->remove_userids_category ?? [];
+            if (in_array(0, $operationdata['userids'])) {
+                $operationdata['userids'] = array_keys($DB->get_records('user', ['deleted' => 0, 'suspended' => 0]));
+            }
             break;
     }
 

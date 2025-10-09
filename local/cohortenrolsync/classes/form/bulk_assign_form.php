@@ -39,6 +39,7 @@ class bulk_assign_form extends \moodleform {
             WHERE deleted = 0 AND suspended = 0
             ORDER BY firstname ASC
         ");
+        $users = [0 => get_string('allusers', 'local_cohortenrolsync')] + $users;
 
         // Assign courses to users
         $mform->addElement('autocomplete', 'courseids', get_string('courses'), $courses, ['multiple' => true]);

@@ -38,3 +38,4 @@ $string['cohortalreadyhascourse'] = 'The selected cohort is already assigned to 
 $string['cohortalreadyincategory'] = 'The selected cohort is already assigned to the chosen category.';
 $string['synctask'] = 'Cohort Enrollment Sync Task';
 $string['batchprocesstask'] = 'Batch Process Task';
+$string['allusers']='All Users';

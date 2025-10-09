@@ -6,8 +6,13 @@ defined('MOODLE_INTERNAL') || die();
 require_once($GLOBALS['CFG']->libdir . '/tablelib.php');
 
 class history_report extends \table_sql {
-    public function __construct($uniqueid) {
+    
+    protected $search = '';
+    
+    public function __construct($uniqueid, $search = '') {
         parent::__construct($uniqueid);
+        
+        $this->search = $search;
 
         $columns = [
             'fullname' => 'Full Name',
@@ -48,6 +53,9 @@ class history_report extends \table_sql {
         $this->define_columns(array_keys($columns));
         $this->define_headers(array_values($columns));
 
+        $this->is_downloadable(true);
+        $this->show_download_buttons_at([TABLE_P_TOP]);
+
         $fields = "
             id, userid, email, personal_type, fullname,
             position_number, position_characteristics, administrative_position,
@@ -62,10 +70,20 @@ class history_report extends \table_sql {
             division_department_operational, division_department_op_lvl1, division_department_op_lvl2
         ";
 
-        $from   = "{local_coursehistory}";
-        $where  = "1=1";
+        $from = "{local_coursehistory}";
+        
+        // ✅ Build WHERE clause with search parameter
+        global $DB;
+        $where = "1=1";
+        $params = [];
+        
+        if (!empty($this->search)) {
+            $where .= " AND " . $DB->sql_like('fullname', ':search', false, false);
+            $params['search'] = '%' . $DB->sql_like_escape($this->search) . '%';
+        }
 
-        $this->set_sql($fields, $from, $where);
+        // ✅ Pass params to set_sql
+        $this->set_sql($fields, $from, $where, $params);
     }
 
     public function col_fullname($row) {
@@ -75,24 +93,12 @@ class history_report extends \table_sql {
         }
         return $row->fullname;
     }
+    
+    public function col_enrolment_date($row) {
+        return $row->enrolment_date ? userdate($row->enrolment_date) : '';
+    }
 
     public function col_completion_date($row) {
         return $row->completion_date ? userdate($row->completion_date) : '';
-    }
-
-    public function get_sql_where() {
-        global $DB;
-
-        $where = '';
-        $params = [];
-
-        // Only search fullname.
-        if (!empty($this->search)) {
-            $search = $DB->sql_like('fullname', ':search', false, false);
-            $where .= $search;
-            $params['search'] = '%' . $this->search . '%';
-        }
-
-        return [$where, $params];
     }
 }

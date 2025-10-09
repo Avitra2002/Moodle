@@ -132,8 +132,18 @@ if ($form->is_cancelled()) {
             $new->course_type = $record['Course Type'] ?? null;
             $new->course_group = $record['Course Group'] ?? null;
             $new->course_name  = $record['Course Name'] ?? null;
-            $new->enrolment_date = !empty($record['Enrolment Date']) ? strtotime($record['Enrolment Date']) : null;
-            $new->completion_date = !empty($record['Completion Date']) ? strtotime($record['Completion Date']) : null;
+            // $new->enrolment_date = !empty($record['Enrolment Date']) ? strtotime($record['Enrolment Date']) : null;
+            // $new->completion_date = !empty($record['Completion Date']) ? strtotime($record['Completion Date']) : null;
+            $enroldate = trim($record['Enrolment Date']);
+            $compdate  = trim($record['Completion Date']);
+
+            $new->enrolment_date = !empty($enroldate) 
+                ? DateTime::createFromFormat('d/m/Y', $enroldate)->getTimestamp() 
+                : null;
+
+            $new->completion_date = !empty($compdate) 
+                ? DateTime::createFromFormat('d/m/Y', $compdate)->getTimestamp() 
+                : null;
             $new->number_of_days = $record['Number of Days'] ?? null;
             $new->intake_no = $record['Intake No.'] ?? null;
             $new->organizing_agency = $record['Organizing Agency'] ?? null;
